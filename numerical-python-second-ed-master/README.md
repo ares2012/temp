@@ -5,7 +5,7 @@ This repository accompanies [*Numerical Python Second Edition*](https://www.apre
 [comment]: #cover
 ![Cover image](9781484242452.jpg)
 
-Download the files as a zip using the green button, or clone the repository to your machine using Git.
+Download the files as a zip using the green button, or clone the repository to your machine using Git. [파이썬과 수치 해석 2](/ehttp://www.acornpub.co.kr/book/numerical-python-2e)
 
 ## Releases
 
