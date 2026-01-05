@@ -18,6 +18,9 @@ https://openincolab.com
 from google.colab import drive
 drive.mount('/content/drive')
 
+# 세션 다시 시작
+! pip install captum bitsandbytes llmlingua
+
 """##### API_KEY"""
 
 import os
@@ -47,9 +50,6 @@ hKEY = keys['huggingface.co']
 
 
 """
-
-# 세션 다시 시작
-! pip install captum bitsandbytes llmlingua
 
 # pip install pycuda
 
@@ -83,21 +83,24 @@ os.environ["PYTORCH_CUDA_ALLOC_CON"] = "expandable_segments:True"
 #os.environ["PYTORCH_NO_CUDA_MEMORY_CACHING"] = "1"
 #os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-# ! cp /content/drive/MyDrive/ColabNotebooks/hub/models--microsoft--Phi-3-mini-128k-instruct/snapshots/072cb7562cb8c4adf682a8e186aaafa49469eb5d/configuration_phi3.py /content/drive/MyDrive/ColabNotebooks/hub/models--microsoft--Phi-3-mini-4k-instruct/snapshots/f39ac1d28e925b323eae81227eaba4464caced4e
-
-# ! cp /content/drive/MyDrive/ColabNotebooks/hub/models--microsoft--Phi-3-mini-128k-instruct/snapshots/072cb7562cb8c4adf682a8e186aaafa49469eb5d/modeling_phi3.py /content/drive/MyDrive/ColabNotebooks/hub/models--microsoft--Phi-3-mini-4k-instruct/snapshots/f39ac1d28e925b323eae81227eaba4464caced4e
-
 # ==========================================
-# 0. 환경 설정 및 엣지 모델 로드 로컬 (1분)
+# 0-2. 환경 설정 및 엣지 모델 로드 로컬 (1분)
 # ==========================================
 torch.cuda.empty_cache()
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 #model_name = "microsoft/Phi-3-mini-128k-instruct" #(1분, 57초/3.6G)
 ##model_name = "microsoft/Phi-3-mini-4k-instruct" #(4분, 52초)
-model_name = "Qwen/Qwen3-0.6B" #Instruct (25초/1.3G, 6초/3.5G)
+
+#model_name = "Qwen/Qwen3-0.6B" #Instruct (25초/1.3G, 6초/3.5G)
 ##model_name = "Qwen/Qwen3-0.6B-Base" #(25초/1.3G, 6초/3.5G)
+model_name = "Qwen/Qwen3-1.7B-Base" #(25초/1.3G, 6초/3.5G)
 #model_name = "Qwen/Qwen3-4B-Instruct-2507" #(25초/1.3G, 6초/3.5G)
+
+#model_name = "google/gemma-3-1b-it" #(25초/1.3G, 6초/3.5G)
+#model_name = "google/gemma-3-4b-it" #(25초/1.3G, 6초/3.5G)
+#model_name = "meta-llama/Llama-3.2-3B" #(25초/1.3G, 6초/3.5G)
+#model_name = "LGAI_EXAONE/EXAONE-4.0-1.2B" #(25초/1.3G, 6초/3.5G)
 local_path = '/content/drive/MyDrive/ColabNotebooks/hub/'
 
 # Construct the path to the model's base directory in the hub
@@ -123,7 +126,8 @@ print(f"Loading model from: {local_model_dir}")
 config = AutoConfig.from_pretrained(local_model_dir, trust_remote_code=True, local_files_only=True, output_attentions=True)
 print(f"Type of config after loading: {type(config)}") # Debugging line
 
-tokenizer = AutoTokenizer.from_pretrained(# model_name,
+tokenizer = AutoTokenizer.from_pretrained(
+    # model_name,
     local_model_dir, # Use the direct local path
     config=config, # Pass the loaded config
     #trust_remote_code=True
@@ -135,7 +139,8 @@ bnb_config = BitsAndBytesConfig(
         bnb_4bit_compute_dtype=torch.float16,
         bnb_4bit_use_double_quant=True,
 )
-model = AutoModelForCausalLM.from_pretrained(# model_name,
+model = AutoModelForCausalLM.from_pretrained(
+        # model_name,
         local_model_dir, # Use the direct local path
         config=config, # Pass the loaded config
         quantization_config=bnb_config,
@@ -148,12 +153,69 @@ model = AutoModelForCausalLM.from_pretrained(# model_name,
 # This globally disables the problematic caching mechanism.
 model.config.use_cache = False
 
-import gc
-gc.collect(); torch.cuda.empty_cache()
+"""##### 모델 다운로드 후 드라이브 복사
 
-torch.cuda.memory_reserved(0), torch.cuda.memory_allocated(0), torch.cuda.get_device_properties(0).total_memory
 
-torch.cuda.mem_get_info(), torch.cuda.mem_get_info()[0]
+*   cp -r /root/.cache/huggingface/hub/models--LGAI-EXAONE--EXAONE-4.0-1.2B/. /content/drive/MyDrive/ColabNotebooks/hub/models--LGAI-EXAONE--EXAONE-4.0-1.2B/
+
+
+
+
+*   cp /content/drive/MyDrive/ColabNotebooks/hub/models--microsoft--Phi-3-mini-128k-instruct/snapshots/072cb7562cb8c4adf682a8e186aaafa49469eb5d/configuration_phi3.py /content/drive/MyDrive/ColabNotebooks/hub/models--microsoft--Phi-3-mini-4k-instruct/snapshots/f39ac1d28e925b323eae81227eaba4464caced4e
+*   cp /content/drive/MyDrive/ColabNotebooks/hub/models--microsoft--Phi-3-mini-128k-instruct/snapshots/072cb7562cb8c4adf682a8e186aaafa49469eb5d/modeling_phi3.py /content/drive/MyDrive/ColabNotebooks/hub/models--microsoft--Phi-3-mini-4k-instruct/snapshots/f39ac1d28e925b323eae81227eaba4464caced4e
+
+
+
+
+"""
+
+# ==========================================
+# 0-1. 환경 설정 및 엣지 모델 다운 로드 (1분)
+# ==========================================
+torch.cuda.empty_cache()
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+#model_name = "microsoft/Phi-3-mini-128k-instruct" #(4분, 57초/3.6G)
+##model_name = "microsoft/Phi-3-mini-4k-instruct" #(4분, 52초/3.6G)
+#model_name = "microsoft/Phi-3.5-mini-instruct" #(1분/7.64G, 52초/3.6G)
+#model_name = "microsoft/Phi-4-mini-instruct" #(1분/7.64G, 52초/3.6G)
+
+##model_name = "Qwen/Qwen3-0.6B-Base" #(25초/1.3G, 6초/3.5G)
+#model_name = "Qwen/Qwen3-0.6B" #Instruct (25초/1.3G, 6초/3.5G)
+#model_name = "Qwen/Qwen3-1.7B" #(43초/4.1G, 6초/3.5G)
+#model_name = "Qwen/Qwen3-4B" #(1분/8.1G, 6초/3.5G)
+model_name = "Qwen/Qwen3-4B-Base" #(1분/8.1G, 6초/3.5G)
+##model_name = "Qwen/Qwen3-4B-Instruct-2507" #(25초/1.3G, 6초/3.5G)
+
+#model_name = "LGAI-EXAONE/EXAONE-4.0-1.2B" #(40초/2.56G, 6초/3.5G)
+
+#model_name = "google/gemma-3-1b-it" #(25초/1.3G, 6초/3.5G)
+#model_name = "google/gemma-3-4b-it" #(25초/1.3G, 6초/3.5G)
+#model_name = "meta-llama/Llama-3.2-1B" #(25초/1.3G, 6초/3.5G)
+#model_name = "meta-llama/Llama-3.2-3B" #(25초/1.3G, 6초/3.5G)
+
+
+tokenizer = AutoTokenizer.from_pretrained(
+    model_name,
+    #trust_remote_code=True
+)
+print(f"tokenizer.vocab_files_names: {tokenizer.vocab_files_names}")
+
+bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+)
+model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        #quantization_config=bnb_config,
+        device_map="auto",
+        torch_dtype="bfloat16"
+        #trust_remote_code=True,
+        #attn_implementation="eager",
+)
+# This globally disables the problematic caching mechanism.
+model.config.use_cache = False
 
 """##### 프롬프트
 
@@ -260,10 +322,22 @@ def get_phi3_token_importance(context, question, model, tokenizer):
 
     return tokens, scores, cds, raw_attn
 
+"""##### Cuda (gpu 최적화)
+
+import gc
+gc.collect(); torch.cuda.empty_cache()
+
+
+torch.cuda.memory_reserved(0), torch.cuda.memory_allocated(0), torch.cuda.get_device_properties(0).total_memory
+
+torch.cuda.mem_get_info(), torch.cuda.mem_get_info()[0]
+"""
+
 import torch
 from captum.attr import IntegratedGradients
 
 MAX_CHUNK_TOKENS = 1024   # 너무 크면 IG에서 OOM → chunk 단위로 처리
+MAX_CHUNK_TOKENS = 512
 DEVICE = "cuda"
 
 def chunk_tokens(input_ids, chunk_size=MAX_CHUNK_TOKENS):
@@ -384,13 +458,25 @@ def get_phi3_token_importance(context, question, model, tokenizer):
 
     return all_tokens, all_scores, cds, all_raw_attn
 
-#! cp -r /root/.cache/huggingface/hub/datasets--ms_marco/. /content/drive/MyDrive/ColabNotebooks/hub/datasets--ms_marco/
+"""##### 데이터셋 다운로드 후 드라이브 복사
 
-#! cp -r /root/.cache/huggingface/datasets/ms_marco/. /content/drive/MyDrive/ColabNotebooks/datasets/ms_marco/
 
-#! cp -r /root/.cache/huggingface/hub/datasets--squad/. /content/drive/MyDrive/ColabNotebooks/hub/datasets--squad/
+*   cp -r /root/.cache/huggingface/hub/datasets--ms_marco/. /content/drive/MyDrive/ColabNotebooks/hub/datasets--ms_marco/
+*   cp -r /root/.cache/huggingface/datasets/ms_marco/. /content/drive/MyDrive/ColabNotebooks/datasets/ms_marco/
 
-#! cp -r /root/.cache/huggingface/datasets/squad/. /content/drive/MyDrive/ColabNotebooks/datasets/squad/
+
+데이터셋
+
+*   dataset3[0]['context']['sentences'][0]
+*   dataset2[0]['context']['passage_text']
+*   dataset1[0]['context']
+
+
+
+
+
+
+"""
 
 # ==========================================
 # 2. 메인 실험 루프 (데이터 수집) 3초
@@ -404,12 +490,6 @@ dataset3 = load_dataset('hotpot_qa', 'distractor', split="validation", cache_dir
 
 #dataset1 #dataset2 #
 dataset3
-
-#dataset3[0]['context']['sentences'][0]
-
-#dataset2[0]['context']['passage_text']
-
-#dataset1[0]['context']
 
 results = []; NUM_SAMPLES = 200  # 논문용으로는 100~200개 권장(10개/1분)
 dataset = dataset3.shuffle(seed=42).select(range(NUM_SAMPLES))
@@ -453,9 +533,17 @@ for i in tqdm(range(NUM_SAMPLES)):
           "tok_h": tok_h, "score_h": score_h, "attn_h": attn_h,
           "q": question, "f": cds_faithful, "d": cds_distracted         }
 
+df = pd.DataFrame(results)
+df.shape, df.describe()
+
 # CSV 저장
 df = pd.DataFrame(results)
-file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_hotpot_qa_with_len.csv"
+
+file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-4B_hotpot_qa_with_len.csv"
+#file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-4B_ms_marco_v2-1_with_len.csv"
+#file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-4B_squad_with_len.csv"
+
+#file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_hotpot_qa_with_len.csv"
 #file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_ms_marco_v2-1_with_len.csv"
 #file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_squad_with_len.csv"
 
@@ -465,7 +553,7 @@ file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_hotpot
 
 df.to_csv(file_name, index=False)
 df.to_csv("phase1_experiment_results.csv", index=False)
-print("✅ Phase1 Experiment results Saved.")
+print("✅ Phase1 Experiment results Saved.",)
 
 import json
 import numpy as np
@@ -476,7 +564,11 @@ serializable_candidate = best_viz_candidate.copy()
 serializable_candidate['attn_f'] = best_viz_candidate['attn_f'][0].tolist()
 serializable_candidate['attn_h'] = best_viz_candidate['attn_h'][0].tolist()
 
-file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_hotpot_qa_best_results.json"
+file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-4B_hotpot_qa_best_results.json"
+#file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-4B_ms_marco_v2-1_best_results.json"
+#file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-4B_squad_best_results.json"
+
+#file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_hotpot_qa_best_results.json"
 #file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_ms_marco_v2-1_best_results.json"
 #file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_squad_best_results.json"
 
