@@ -13,25 +13,26 @@ Original file is located at
 </a>
 
 https://openincolab.com
+
+##### 세션 다시 시작(0)
 """
+
+! pip install captum bitsandbytes llmlingua
+
+"""##### 드라이브(0)"""
 
 from google.colab import drive
 drive.mount('/content/drive')
 
-# 세션 다시 시작
-! pip install captum bitsandbytes llmlingua
-
 """##### API_KEY"""
+
+# cp -r /content/drive/MyDrive/Colab\ Notebooks/my_list.txt /content
 
 import os
 import json
 
-import numpy as np
-import pandas as pd
-
-cp -r /content/drive/MyDrive/Colab\ Notebooks/my_list.txt /content
-
 file_path = '/content/my_list.txt'
+file_path = '/content/drive/MyDrive/ColabNotebooks/env/my_list.txt'
 
 with open(file_path, 'r') as f:
   keys = json.load(f)
@@ -39,10 +40,14 @@ with open(file_path, 'r') as f:
 oKEY = keys['OPENAI_API_KEY']
 pKEY = keys['PINECONE_API_KEY']
 hKEY = keys['huggingface.co']
+hf_KEY = keys['HF_TOKEN']
 
-!pip install openai --upgrade --quiet
+from huggingface_hub import login
 
-"""##### Successfully installed transformers-4.57.3
+print(hf_KEY); login(hf_KEY)
+
+"""##### 추가 설치
+Successfully installed transformers-4.57.3
 
 
 * pip install captum bitsandbytes llmlingua
@@ -51,17 +56,27 @@ hKEY = keys['huggingface.co']
 
 """
 
+# !pip install openai --upgrade --quiet
+
 # pip install pycuda
 
 # pip install --upgrade transformers
 
-# pip install transformers==4.57.3
+pip list | grep transformers
+
+# pip uninstall -y transformers && pip install git+https://github.com/huggingface/transformers
+
+pip uninstall -y transformers && pip install transformers==4.49.0
 
 """# CDS
 
+##### 모델 로드(1)
 """
 
 import os
+import sys
+import json
+
 import torch
 
 import numpy as np
@@ -89,18 +104,21 @@ os.environ["PYTORCH_CUDA_ALLOC_CON"] = "expandable_segments:True"
 torch.cuda.empty_cache()
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-#model_name = "microsoft/Phi-3-mini-128k-instruct" #(1분, 57초/3.6G)
 ##model_name = "microsoft/Phi-3-mini-4k-instruct" #(4분, 52초)
+model_name = "microsoft/Phi-3-mini-128k-instruct" #(1분, 57초/3.6G)
+#model_name = "microsoft/Phi-3.5-mini-instruct" #(1분, 57초/3.6G)
+#model_name = "microsoft/Phi-4-mini-instruct" #(3분/2.9G) #transformers==4.49.0
 
 #model_name = "Qwen/Qwen3-0.6B" #Instruct (25초/1.3G, 6초/3.5G)
-##model_name = "Qwen/Qwen3-0.6B-Base" #(25초/1.3G, 6초/3.5G)
-model_name = "Qwen/Qwen3-1.7B-Base" #(25초/1.3G, 6초/3.5G)
+#model_name = "Qwen/Qwen3-1.7B" #Instruct (25초/1.3G, 6초/3.5G)
+#model_name = "Qwen/Qwen3-4B" #Instruct (3분/3.9G)
 #model_name = "Qwen/Qwen3-4B-Instruct-2507" #(25초/1.3G, 6초/3.5G)
 
 #model_name = "google/gemma-3-1b-it" #(25초/1.3G, 6초/3.5G)
-#model_name = "google/gemma-3-4b-it" #(25초/1.3G, 6초/3.5G)
-#model_name = "meta-llama/Llama-3.2-3B" #(25초/1.3G, 6초/3.5G)
-#model_name = "LGAI_EXAONE/EXAONE-4.0-1.2B" #(25초/1.3G, 6초/3.5G)
+#model_name = "google/gemma-3-4b-it" #(25초/1.3G, 2분/4.2G)
+#model_name = "meta-llama/Llama-3.2-1B-Instruct" #(25초/1.3G, 6초/3.5G)
+model_name = "meta-llama/Llama-3.2-3B-Instruct" #(25초/1.3G, 6초/3.5G)
+#model_name = "LGAI-EXAONE/EXAONE-4.0-1.2B" #(25초/1.3G, 6초/3.5G)
 local_path = '/content/drive/MyDrive/ColabNotebooks/hub/'
 
 # Construct the path to the model's base directory in the hub
@@ -146,14 +164,15 @@ model = AutoModelForCausalLM.from_pretrained(
         quantization_config=bnb_config,
         device_map="auto",
         trust_remote_code=True,
-        attn_implementation="eager",
+        #attn_implementation="eager",
         #output_attentions=True,
         local_files_only = True # Ensure local files are used
 )
 # This globally disables the problematic caching mechanism.
 model.config.use_cache = False
 
-"""##### 모델 다운로드 후 드라이브 복사
+"""##### 모델 다운로드
+: 후 드라이브 복사
 
 
 *   cp -r /root/.cache/huggingface/hub/models--LGAI-EXAONE--EXAONE-4.0-1.2B/. /content/drive/MyDrive/ColabNotebooks/hub/models--LGAI-EXAONE--EXAONE-4.0-1.2B/
@@ -169,30 +188,38 @@ model.config.use_cache = False
 
 """
 
+! cp -r /root/.cache/huggingface/hub/models--meta-llama--Llama-3.2-3B-Instruct/. /content/drive/MyDrive/ColabNotebooks/hub/models--meta-llama--Llama-3.2-3B-Instruct/
+
+#configuration_phi3.py, modeling_phi3.py
+
+!cp /root/.cache/huggingface/hub/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083/modeling_phi3.py /content/drive/MyDrive/ColabNotebooks/hub/models--microsoft--Phi-4-mini-instruct/snapshots/cfbefacb99257ffa30c83adab238a50856ac3083
+
 # ==========================================
 # 0-1. 환경 설정 및 엣지 모델 다운 로드 (1분)
 # ==========================================
 torch.cuda.empty_cache()
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-#model_name = "microsoft/Phi-3-mini-128k-instruct" #(4분, 57초/3.6G)
 ##model_name = "microsoft/Phi-3-mini-4k-instruct" #(4분, 52초/3.6G)
+#model_name = "microsoft/Phi-3-mini-128k-instruct" #(4분, 57초/3.6G)
 #model_name = "microsoft/Phi-3.5-mini-instruct" #(1분/7.64G, 52초/3.6G)
-#model_name = "microsoft/Phi-4-mini-instruct" #(1분/7.64G, 52초/3.6G)
+model_name = "microsoft/Phi-4-mini-instruct" #(1분/7.64G, 52초/3.6G)
 
-##model_name = "Qwen/Qwen3-0.6B-Base" #(25초/1.3G, 6초/3.5G)
 #model_name = "Qwen/Qwen3-0.6B" #Instruct (25초/1.3G, 6초/3.5G)
 #model_name = "Qwen/Qwen3-1.7B" #(43초/4.1G, 6초/3.5G)
 #model_name = "Qwen/Qwen3-4B" #(1분/8.1G, 6초/3.5G)
-model_name = "Qwen/Qwen3-4B-Base" #(1분/8.1G, 6초/3.5G)
+##model_name = "Qwen/Qwen3-0.6B-Base" #(25초/1.3G, 6초/3.5G)
+##model_name = "Qwen/Qwen3-4B-Base" #(1분/8.1G, 6초/3.5G)
 ##model_name = "Qwen/Qwen3-4B-Instruct-2507" #(25초/1.3G, 6초/3.5G)
 
-#model_name = "LGAI-EXAONE/EXAONE-4.0-1.2B" #(40초/2.56G, 6초/3.5G)
+#model_name = "LGAI-EXAONE/EXAONE-4.0-1.2B" #(40초/2.56G, 6초/1.3G)
 
 #model_name = "google/gemma-3-1b-it" #(25초/1.3G, 6초/3.5G)
-#model_name = "google/gemma-3-4b-it" #(25초/1.3G, 6초/3.5G)
-#model_name = "meta-llama/Llama-3.2-1B" #(25초/1.3G, 6초/3.5G)
+#model_name = "google/gemma-3-4b-it" #(25초/1.3G, 6초/4.6G)
+#model_name = "meta-llama/Llama-3.2-1B" #(25초/1.3G, 6초/0.3G)
 #model_name = "meta-llama/Llama-3.2-3B" #(25초/1.3G, 6초/3.5G)
+#model_name = "meta-llama/Llama-3.2-1B-Instruct" #(25초/1.3G, 6초/0.3G)
+#model_name = "meta-llama/Llama-3.2-3B-Instruct" #(25초/1.3G, 6초/3.5G)
 
 
 tokenizer = AutoTokenizer.from_pretrained(
@@ -210,9 +237,10 @@ model = AutoModelForCausalLM.from_pretrained(
         model_name,
         #quantization_config=bnb_config,
         device_map="auto",
-        torch_dtype="bfloat16"
-        #trust_remote_code=True,
-        #attn_implementation="eager",
+        #torch_dtype="bfloat16"
+        torch_dtype="auto",
+        trust_remote_code=True,
+        attn_implementation="eager"
 )
 # This globally disables the problematic caching mechanism.
 model.config.use_cache = False
@@ -322,7 +350,8 @@ def get_phi3_token_importance(context, question, model, tokenizer):
 
     return tokens, scores, cds, raw_attn
 
-"""##### Cuda (gpu 최적화)
+"""##### CDS/ATT 산출(2)
+: Cuda/gpu 최적화
 
 import gc
 gc.collect(); torch.cuda.empty_cache()
@@ -361,7 +390,7 @@ def get_phi3_token_importance(context, question, model, tokenizer):
     )
 
     # -------------------------------------------------------
-    # 1. 토크나이징 (CPU 유지)
+    # 1-1. 토크나이징 (CPU 유지)
     # -------------------------------------------------------
     torch.cuda.empty_cache()
     inputs = tokenizer(full_text, return_tensors="pt", add_special_tokens=False)
@@ -376,7 +405,7 @@ def get_phi3_token_importance(context, question, model, tokenizer):
     all_raw_attn = []
 
     # -------------------------------------------------------
-    # 2. Attention 추출 (Chunk 단위)
+    # 1-2. Attention 추출 (Chunk 단위)
     # -------------------------------------------------------
     for c_idx, chunk in enumerate(token_chunks):
         input_tensor = torch.tensor(chunk, dtype=torch.long).unsqueeze(0).to(DEVICE)
@@ -391,7 +420,7 @@ def get_phi3_token_importance(context, question, model, tokenizer):
         torch.cuda.empty_cache()
 
     # -------------------------------------------------------
-    # 3. 임베딩 레이어 가져오기
+    # 1-3. 임베딩 레이어 가져오기
     # -------------------------------------------------------
     if hasattr(model, "model") and hasattr(model.model, "embed_tokens"):
         embedding_layer = model.model.embed_tokens
@@ -401,7 +430,7 @@ def get_phi3_token_importance(context, question, model, tokenizer):
         embedding_layer = model.get_input_embeddings()
 
     # -------------------------------------------------------
-    # 4. Chunk 단위 IG 계산
+    # 1-4. Chunk 단위 IG 계산
     # -------------------------------------------------------
     for c_idx, chunk in enumerate(token_chunks):
 
@@ -437,15 +466,19 @@ def get_phi3_token_importance(context, question, model, tokenizer):
         # L2 Norm 기반 중요도 계산
         scores = torch.norm(attributions, dim=-1).squeeze().tolist()
         tokens = tokenizer.convert_ids_to_tokens(chunk)
+        token_attr = attributions.sum(dim=-1).squeeze(0).abs()
 
         all_tokens.extend(tokens)
-        all_scores.extend(scores)
+        if not isinstance(scores, list):
+            all_scores.append(scores)
+        else:
+            all_scores.extend(scores)
 
         del attributions, delta, ids_tensor, input_embeds
         torch.cuda.empty_cache()
 
     # -------------------------------------------------------
-    # 5. CDS 계산
+    # 1-5. CDS 계산
     # -------------------------------------------------------
     try:
         sep_idx = next(i for i, t in enumerate(all_tokens) if "Question" in t)
@@ -456,20 +489,122 @@ def get_phi3_token_importance(context, question, model, tokenizer):
         cds = 0.5
         sep_idx = len(all_tokens) // 2
 
-    return all_tokens, all_scores, cds, all_raw_attn
+    return all_tokens, all_scores, cds, all_raw_attn, token_attr, sep_idx, inputs.input_ids[0]
 
-"""##### 데이터셋 다운로드 후 드라이브 복사
+# -------------------------------------------------------
+# 1-6. Attribute Shift 계산
+# -------------------------------------------------------
+def compute_shift(attr_f, attr_d, ctx_mask, q_mask):
+    A_ctx_f = attr_f[ctx_mask].sum()
+    A_ctx_d = attr_d[ctx_mask].sum()
+    A_q_f = attr_f[q_mask].sum()
+    A_q_d = attr_d[q_mask].sum()
+
+    context_drop = (A_ctx_f - A_ctx_d).item()
+    question_rise = (A_q_d - A_q_f).item()
+    total_shift = context_drop + question_rise
+
+    return {
+        "context_drop": context_drop,
+        "question_rise": question_rise,
+        "total_shift": total_shift
+    }
+
+
+def build_masks(input_ids, context_start, context_end):
+    # 질문 영역 = [1 : context_start)
+    q_mask = torch.zeros_like(input_ids, dtype=torch.bool)
+    q_mask[1:context_start] = True
+
+    # 문맥 영역
+    ctx_mask = torch.zeros_like(input_ids, dtype=torch.bool)
+    ctx_mask[context_start:context_end] = True
+
+    return q_mask, ctx_mask
+
+def build_masks(input_ids, sep_idx):
+    # 질문 영역 = [ sep_idx : ]
+    q_mask = torch.zeros_like(input_ids, dtype=torch.bool)
+    q_mask[sep_idx:] = True
+
+    # 문맥 영역 = [ : sep_idx ]
+    ctx_mask = torch.zeros_like(input_ids, dtype=torch.bool)
+    ctx_mask[:sep_idx] = True
+
+    return q_mask, ctx_mask
+
+def find_context_question_spans(token_list):
+    """
+    Qwen/Phi 모델용
+    토큰에서 'Context:' / 'Question:' 문자열 패턴으로 위치 탐색
+    """
+
+    context_key = "Context"
+    question_key = "Question"
+
+    # 부분 문자열 매칭으로 robust 처리
+    ctx_idx = next((i for i, t in enumerate(token_list) if context_key in t), None)
+    q_idx = next((i for i, t in enumerate(token_list) if question_key in t), None)
+
+    if ctx_idx is None or q_idx is None:
+        # fallback: 절반으로 분리
+        mid = len(token_list) // 2
+        return (1, mid), (mid, len(token_list))
+
+    # 실제 context는 "Context:" 다음 줄부터 시작
+    # 예: ["Context", ":</n>", "hello", "world", ...]
+    context_start = ctx_idx + 1
+    question_start = q_idx + 1
+
+    context_span = (context_start, question_start)
+    question_span = (question_start, len(token_list))
+
+    return context_span, question_span
+
+
+def compute_attribution_shift(tokens_f, scores_f, tokens_d, scores_d):
+    """
+    Faithful / Distracted Attribution Shift 계산
+    """
+
+    # 1) 두 케이스에서 context/question 구간 찾기
+    ctx_f, q_f = find_context_question_spans(tokens_f)
+    ctx_d, q_d = find_context_question_spans(tokens_d)
+
+    c_s_f, c_e_f = ctx_f
+    q_s_f, q_e_f = q_f
+
+    c_s_d, c_e_d = ctx_d
+    q_s_d, q_e_d = q_d
+
+    # 2) Attribution 합산
+    A_ctx_f = sum(scores_f[c_s_f:c_e_f])
+    A_ctx_d = sum(scores_d[c_s_d:c_e_d])
+
+    A_q_f = sum(scores_f[q_s_f:q_e_f])
+    A_q_d = sum(scores_d[q_s_d:q_e_d])
+
+    # 3) Shift 계산
+    context_drop = A_ctx_f - A_ctx_d
+    question_rise = A_q_d - A_q_f
+    total_shift = context_drop + question_rise
+
+    return {
+        "context_drop": context_drop,
+        "question_rise": question_rise,
+        "total_shift": total_shift,
+        "ctx_span_f": ctx_f,
+        "ctx_span_d": ctx_d,
+        "q_span_f": q_f,
+        "q_span_d": q_d,
+    }
+
+"""##### 데이터셋 다운로드
+ : 후 드라이브 복사
 
 
 *   cp -r /root/.cache/huggingface/hub/datasets--ms_marco/. /content/drive/MyDrive/ColabNotebooks/hub/datasets--ms_marco/
 *   cp -r /root/.cache/huggingface/datasets/ms_marco/. /content/drive/MyDrive/ColabNotebooks/datasets/ms_marco/
-
-
-데이터셋
-
-*   dataset3[0]['context']['sentences'][0]
-*   dataset2[0]['context']['passage_text']
-*   dataset1[0]['context']
 
 
 
@@ -533,6 +668,166 @@ for i in tqdm(range(NUM_SAMPLES)):
           "tok_h": tok_h, "score_h": score_h, "attn_h": attn_h,
           "q": question, "f": cds_faithful, "d": cds_distracted         }
 
+import tqdm
+import random
+import pandas as pd
+from datasets import load_dataset
+
+NUM_SAMPLES = 200
+data_path = "/content/drive/MyDrive/ColabNotebooks/datasets"
+test_data = [['squad', 'plain_text'],['ms_marco', 'v2.1'],['hotpot_qa', 'distractor']]
+for n in test_data:
+  dataset = load_dataset(n[0], n[1], split="validation", cache_dir=data_path)
+  if n[0] == 'ms_marco':
+    dataset = dataset.rename_column("query", "question").rename_column("passages", "context")
+  print(dataset)
+
+  dataset = dataset.shuffle(seed=42).select(range(NUM_SAMPLES))
+  print(f"\n🚀 Collecting Data from {NUM_SAMPLES} samples...")
+  for i in tqdm.tqdm(range(NUM_SAMPLES)):
+      data = dataset[i]
+      question = data['question']
+      # [조건 1] Faithful: 올바른 문맥
+      if n[0] == 'hotpot_qa':
+        cds_faithful = " ".join(["".join(sent) for sent in data['context']['sentences']])
+      elif n[0] == 'ms_marco':
+        cds_faithful = " ".join(["".join(sent) for sent in data['context']['passage_text']])
+      else:
+        cds_faithful= data['context']
+      #print("cds_faithful:",cds_faithful)
+      # [조건 2] Distracted: 무관한 문맥 (랜덤 샘플링)
+      rand_idx = random.randint(0, len(dataset)-1)
+      while rand_idx == i: rand_idx = random.randint(0, len(dataset)-1)
+      if n[0] == 'hotpot_qa':
+        cds_distracted = " ".join(["".join(sent) for sent in dataset[rand_idx]['context']['sentences']])
+      elif n[0] == 'ms_marco':
+        cds_distracted = " ".join(["".join(sent) for sent in dataset[rand_idx]['context']['passage_text']])
+      else:
+        cds_distracted = dataset[rand_idx]['context']
+      #print("cds_distracted:",cds_distracted)
+      print(i, len(cds_faithful), len(cds_distracted))
+
+      context = cds_faithful
+      context_start = 0
+      context_end = len(context)
+      full_text = (
+          "<|user|>\nContext:\n" +
+          context +
+          "\n\nQuestion:\n" +
+          question +
+          "\n\nAnswer based on the context:<|end|>\n<|assistant|>"
+      )
+
+      all_tokens = full_text.split()
+      try:
+          sep_idx = next(i for i, t in enumerate(all_tokens) if "Question" in t)
+          print(all_tokens[sep_idx:])
+          #context_score = sum(all_scores[:sep_idx])
+          #total_score = sum(all_scores)
+          #cds = context_score / total_score if total_score > 0 else 0
+          #print(context_score, total_score, cds)
+      except StopIteration:
+          cds = 0.5
+          sep_idx = len(all_tokens) // 2
+
+"""##### 실험(3)
+: 데이터셋+결과저장
+
+*   dataset3[0]['context']['sentences'][0]
+*   dataset2[0]['context']['passage_text']
+*   dataset1[0]['context']
+"""
+
+def save_results(results, best_viz_candidate, data_name):
+    rst_path = "/content/drive/MyDrive/ColabNotebooks/results/CDS_4B/"
+    csv_name = rst_path + model_name.split('/')[1]+"_" +data_name+".csv"
+    df = pd.DataFrame(results)
+    df.to_csv(csv_name, index=False)
+    print(f"✅ Phase1 {model_name}_{data_name} Experiment results Saved.",)
+
+
+    # Prepare a copy of the dictionary to modify for JSON serialization
+    # This prevents modifying the original best_viz_candidate if it's used elsewhere as numpy array
+    serializable_candidate = best_viz_candidate.copy()
+    serializable_candidate['attn_f'] = best_viz_candidate['attn_f'][0].tolist()
+    serializable_candidate['attn_d'] = best_viz_candidate['attn_d'][0].tolist()
+
+    json_name = rst_path + model_name.split("/")[1]+"_" +data_name+".json"
+    with open(json_name, 'w') as f:
+        json.dump(serializable_candidate, f)
+
+# ==========================================
+# 2. 메인 실험 루프 (데이터셋 *3) 25분, 65분
+# ==========================================
+
+data_path = "/content/drive/MyDrive/ColabNotebooks/datasets"
+test_data = [['squad', 'plain_text'],['ms_marco', 'v2.1'],['hotpot_qa', 'distractor']]
+#test_data = [['hotpot_qa', 'distractor']]
+for n in test_data:
+  dataset = load_dataset(n[0], n[1], split="validation", cache_dir=data_path)
+  if n[0] == 'ms_marco':
+    dataset = dataset.rename_column("query", "question").rename_column("passages", "context")
+  print(dataset)
+
+  results = []; best_viz_candidate = None; max_cds_diff = -1
+  NUM_SAMPLES = 200  # 논문용으로 100~200개 추출(10개/1분)
+  dataset = dataset.shuffle(seed=42).select(range(NUM_SAMPLES))
+  print(f"\n🚀 Collecting Data from {NUM_SAMPLES} samples...")
+  for i in tqdm(range(NUM_SAMPLES)):
+      torch.cuda.empty_cache()#; print(torch.cuda.memory_allocated(0))
+      data = dataset[i]
+      question = data['question']
+      # [조건 1] Faithful: 올바른 문맥
+      if n[0] == 'hotpot_qa':
+        cds_faithful = " ".join(["".join(sent) for sent in data['context']['sentences']])
+      elif n[0] == 'ms_marco':
+        cds_faithful = " ".join(["".join(sent) for sent in data['context']['passage_text']])
+      else:
+        cds_faithful= data['context']
+      #print("cds_faithful:",cds_faithful)
+      # [조건 2] Distracted: 무관한 문맥 (랜덤 샘플링)
+      rand_idx = random.randint(0, len(dataset)-1)
+      while rand_idx == i: rand_idx = random.randint(0, len(dataset)-1)
+      if n[0] == 'hotpot_qa':
+        cds_distracted = " ".join(["".join(sent) for sent in dataset[rand_idx]['context']['sentences']])
+      elif n[0] == 'ms_marco':
+        cds_distracted = " ".join(["".join(sent) for sent in dataset[rand_idx]['context']['passage_text']])
+      else:
+        cds_distracted = dataset[rand_idx]['context']
+      #print("cds_distracted:",cds_distracted)
+      print(i, len(cds_faithful), len(cds_distracted))
+
+      # 1) CDS 계산
+      tok_f, score_f, cds_f, attn_f, attr_f, sep_f, ids_f = get_phi3_token_importance(cds_faithful, question, model, tokenizer)
+      tok_d, score_d, cds_d, attn_d, attr_d, sep_d, ids_d = get_phi3_token_importance(cds_distracted, question, model, tokenizer)
+      if cds_f is None or cds_d is None: continue # 에러/OOM 스킵
+
+      # 2) 마스크 계산
+      q_mask_f, ctx_mask_f = build_masks(ids_f, sep_f)
+      q_mask_d, ctx_mask_d = build_masks(ids_d, sep_d)
+
+      # 3) Attribution Shift 계산
+      #shift = compute_shift(attr_f, attr_d, ctx_mask_f, q_mask_f)
+      shift = compute_attribution_shift(tok_f, score_f, tok_d, score_d)
+
+      # 4) 결과 저장
+      diff = cds_f - cds_d; len_diff = len(cds_faithful) - len(cds_distracted)
+      results.append({"id": i,"cds_faithful": cds_f, "cds_distracted": cds_d, "cds_diff": diff,
+                      "len_faithful": len(cds_faithful), "len_distracted": len(cds_distracted), "len_diff": len_diff,
+                      "context_drop": shift["context_drop"], "question_rise": shift["question_rise"], "total_shift": shift["total_shift"]})
+      # 5) 시각화용 저장 (차이가 가장 큰 것)
+      if diff > max_cds_diff:
+        max_cds_diff = diff
+        best_viz_candidate = {
+            "tok_f": tok_f, "score_f": score_f, "attn_f": attn_f,
+            "tok_d": tok_d, "score_d": score_d, "attn_d": attn_d,
+            "q": question, "f": cds_faithful, "d": cds_distracted         }
+
+  # 결과 저장
+  save_results(results, best_viz_candidate, n[0])
+
+"""##### 결과 저장"""
+
 df = pd.DataFrame(results)
 df.shape, df.describe()
 
@@ -585,6 +880,26 @@ type(best_viz_candidate['score_f']), len(best_viz_candidate['score_f']), best_vi
 
 type(best_viz_candidate['attn_f']), len(best_viz_candidate['attn_f']), best_viz_candidate['attn_f'][0], len(best_viz_candidate['attn_f'][0])
 
+"""# 결과 분석(4)"""
+
+import glob
+
+file_num = 0
+rst_path = "/content/drive/MyDrive/ColabNotebooks/results/CDS_4B/*"
+file_list = glob.glob(rst_path)
+file_list_csv = [file for file in file_list if file.endswith(".csv")]
+file_list_csv, file_list_csv[file_num].split('/')[-1].split(".")[0], len(file_list_csv)
+
+import glob
+
+file_num = 0
+rst_path = "/content/drive/MyDrive/ColabNotebooks/results/CDS_4B/*"
+file_list = glob.glob(rst_path)
+file_list_json = [file for file in file_list if file.endswith(".json")]
+file_list_json, file_list_json[file_num].split('/')[-1].split(".")[0]
+
+"""##### 정량 분석(4-1)"""
+
 # ==========================================
 # 3. 정량 분석: 통계 검정 (T-test & kdeplot)
 # ==========================================
@@ -599,22 +914,26 @@ import seaborn as sns
 #file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_ms_marco_v2-1_with_len.csv"
 #file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_squad_with_len.csv"
 
-file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Phi-3-mini_hotpot_qa_with_len.csv"
+#file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Phi-3-mini_hotpot_qa_with_len.csv"
 #file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Phi-3-mini_ms_marco_v2-1_with_len.csv"
 #file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Phi-3-mini_squad_with_len.csv"
 
+file_num = 0
+file_name = file_list_csv[file_num]; print(file_name)
 with open(file_name, 'r') as f:
     df = pd.read_csv(f); print(df.shape)
-    #df = df[(df['len_faithful']< 1100) & (df['len_distracted'] < 1100)];  print(df.shape)
+    #df = df[(df['len_faithful']< 1200) & (df['len_distracted'] < 1200)];  print(df.shape)
     #df = df[(df['len_faithful']< 3500) & (df['len_distracted'] < 3500)];  print(df.shape)
     #df = df[(df['len_faithful']>= 3500) | (df['len_distracted'] >= 3500)];  print(df.shape)
     #df = df[(df['len_faithful']< 4400) & (df['len_distracted'] < 4400)];  print(df.shape)
     #df = df[(df['len_faithful'] >= 4400) & (df['len_distracted'] >= 4400)];  print(df.shape)
 
-    df['len_diff'] = df['len_faithful'] - df['len_distracted']
+    #df['len_diff'] = df['len_faithful'] - df['len_distracted']
     #df = df[(df['len_diff']< 0)];  print(df.shape)
 
 df.describe()
+
+
 
 # 길이 비교
 t_stat, p_val = stats.ttest_rel(df['len_faithful'], df['len_distracted'])
@@ -646,15 +965,15 @@ plt.show()
 def corr_len_cds_(corr_):
   cc7=0.7; cc5=0.5; cc3=0.3
   if abs(corr_) > cc7:
-      print("⚠️ 길이 차이가 CDS 차이에 강력한 영향을 줄 가능성이 있음.")
+      print("⚠️ 길이가 CDS에 강력한 영향을 줄 가능성이 있음.")
   if abs(corr_) > cc5:
-      print("⚠️ 길이 차이가 CDS 차이에 중간 영향을 줄 가능성이 있음.")
+      print("⚠️ 길이가 CDS에 중간 영향을 줄 가능성이 있음.")
   elif abs(corr_) > cc3:
-      print("⚠️ 길이 차이가 CDS 차이에 의미 있는 영향을 줄 가능성이 있음.")
+      print("⚠️ 길이가 CDS에 약한 영향을 줄 가능성이 있음.")
   else:
-      print("ℹ️ 길이 차이의 영향은 크지 않은 것으로 보임.")
+      print("ℹ️ 길이 영향은 크지 않은 것으로 보임.")
 
-corr_len_cds = df['len_diff'].corr(df['diff'])
+corr_len_cds = df['len_diff'].corr(df['cds_diff'])
 print(f"Correlation(len_diff, cds_diff): {corr_len_cds:.4f}")
 corr_len_cds_(corr_len_cds)
 corr_faithful = df['len_faithful'].corr(df['cds_faithful'])
@@ -664,6 +983,120 @@ corr_distracted = df['len_distracted'].corr(df['cds_distracted'])
 print(f"Correlation(len_d, cds_d): {corr_distracted:.4f}")
 corr_len_cds_(corr_distracted)
 
+# 'diff' 값을 기준으로 'diff_group' 생성
+def assign_diff_group(diff):
+    if diff > 0:
+        return 'positive'
+    elif diff < 0:
+        return 'negative'
+    else:
+        return 'zero'
+
+df['diff_group'] = df['cds_diff'].apply(assign_diff_group)
+
+def assign_diff_group(diff):
+    if diff > 0:
+        return 'positive'
+    elif diff < 0:
+        return 'negative'
+    else:
+        return 'zero'
+
+df['len_diff_group'] = df['len_diff'].apply(assign_diff_group)
+
+# 시각화 설정: 두 개의 플롯을 하나의 그림에 배치
+def two_plots(df, plot_var):
+  fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=False)
+  cols1 = {'positive': 'blue', 'negative': 'red', 'zero': 'black'}
+  cols2 = {'positive': 'green', 'negative': 'orange', 'zero': 'black'}
+
+  # 첫 번째 플롯: cds_faithful vs cds_distracted
+  sns.scatterplot(
+      ax=axes[0],
+      #data=df[df['len_diff']<0], #len_faithful<len_distracted,
+      #data=df[df['len_diff']>0], #len_faithful>len_distracted,
+      data=df, x=plot_var["x1"], y=plot_var["y1"], hue=plot_var["hue1"],
+      #x='cds_faithful',      #y='cds_distracted',      #hue='diff_group',
+      palette=cols1,
+      legend='full'
+  )
+  axes[0].set_title(plot_var["title1"])
+  axes[0].set_xlabel(plot_var["xlabel1"])
+  axes[0].set_ylabel(plot_var["ylabel1"])
+  axes[0].grid(True)
+
+  # 두 번째 플롯: len_faithful vs len_distracted
+  sns.scatterplot(
+      ax=axes[1],
+      #data=df[df['len_diff']<0], #len_faithful<len_distracted,
+      #data=df[df['len_diff']>0], #len_faithful>len_distracted,
+      data=df, x=plot_var["x2"], y=plot_var["y2"], hue=plot_var["hue2"],
+      #x='len_faithful',      #y='len_distracted',      #hue='len_diff_group',
+      palette=cols1 if plot_var["hue1"]==plot_var["hue2"] else cols2,
+      legend='full'
+  )
+  axes[1].set_title(plot_var["title2"])
+  axes[1].set_xlabel(plot_var["xlabel2"])
+  axes[1].set_ylabel(plot_var["ylabel2"])
+  axes[1].grid(True)
+
+  plt.tight_layout()
+  plt.show()
+
+# 점수 차이와 점수, 길이 차이와 길이: 당연히 나뉘어짐
+plot_var1 = {"title1":'Scatter Plot of Faithful vs Distracted Centeredness',
+             "xlabel1": 'Faithful Centeredness', "ylabel1": 'Distracted Centeredness',
+             "x1": 'cds_faithful', "y1": 'cds_distracted', "hue1": 'diff_group',
+             "title2":'Scatter Plot of Faithful vs Distracted Length',
+             "xlabel2": 'Faithful Length', "ylabel2": 'Distracted Length',
+             "x2": 'len_faithful', "y2": 'len_distracted', "hue2": 'len_diff_group'}
+two_plots(df, plot_var1)
+
+#
+plot_var2 = {"title1":'Scatter Plot of Faithful vs Distracted Centeredness',
+             "xlabel1": 'Faithful Centeredness', "ylabel1": 'Distracted Centeredness',
+             "x1": 'cds_faithful', "y1": 'cds_distracted', "hue1": 'len_diff_group',
+             "title2":'Scatter Plot of Faithful vs Distracted Length',
+             "xlabel2": 'Faithful Length', "ylabel2": 'Distracted Length',
+             "x2": 'len_faithful', "y2": 'len_distracted', "hue2": 'diff_group'}
+two_plots(df, plot_var2)
+
+#
+plot_var3 = {"title1":'Scatter Plot of Faithful vs Distracted Centeredness',
+             "xlabel1": 'Distracted Length', "ylabel1": 'Distracted Centeredness',
+             "x1": 'len_distracted', "y1": 'cds_distracted', "hue1": 'len_diff_group',
+             "title2":'Scatter Plot of Faithful vs Distracted Length',
+             "xlabel2": 'Faithful Length', "ylabel2": 'Faithful Centeredness',
+             "x2": 'len_faithful', "y2": 'cds_faithful', "hue2": 'len_diff_group'}
+two_plots(df, plot_var3)
+
+#
+plot_var4 = {"title1":'Scatter Plot of Faithful vs Distracted Centeredness',
+             "xlabel1": 'Distracted Length', "ylabel1": 'Distracted Centeredness',
+             "x1": 'len_distracted', "y1": 'cds_distracted', "hue1": 'diff_group',
+             "title2":'Scatter Plot of Faithful vs Distracted Length',
+             "xlabel2": 'Faithful Length', "ylabel2": 'Faithful Centeredness',
+             "x2": 'len_faithful', "y2": 'cds_faithful', "hue2": 'diff_group'}
+two_plots(df, plot_var4)
+
+#
+plot_var5 = {"title1":'Scatter Plot of Length vs Distracted Centeredness',
+             "xlabel1": 'Difference of  Length', "ylabel1": 'Distracted Centeredness',
+             "x1": 'len_diff', "y1": 'cds_distracted', "hue1": 'diff_group',
+             "title2":'Scatter Plot of Length vs Faithful Centeredness',
+             "xlabel2": 'Difference of  Length', "ylabel2": 'Faithful Centeredness',
+             "x2": 'len_diff', "y2": 'cds_faithful', "hue2": 'diff_group'}
+two_plots(df, plot_var5)
+
+#
+plot_var6 = {"title1":'Scatter Plot of CDS vs Distracted Length',
+             "xlabel1": 'Difference of CDS', "ylabel1": 'Distracted Length',
+             "x1": 'cds_diff', "y1": 'len_distracted', "hue1": 'len_diff_group',
+             "title2":'Scatter Plot of CDS vs Faithful Length',
+             "xlabel2": 'Difference of CDS', "ylabel2": 'Faithful Length',
+             "x2": 'cds_diff', "y2": 'len_faithful', "hue2": 'len_diff_group'}
+two_plots(df, plot_var6)
+
 # CDS 비교
 t_stat, p_val = stats.ttest_rel(df['cds_faithful'], df['cds_distracted'])
 print("\n" + "="*50)
@@ -671,7 +1104,7 @@ print("📊 [Phase 1] Quantitative Results")
 print("="*50)
 print(f"Mean CDS (Faithful):     {df['cds_faithful'].mean():.4f} (std: {df['cds_faithful'].std():.4f})")
 print(f"Mean CDS (Distracted): {df['cds_distracted'].mean():.4f} (std: {df['cds_distracted'].std():.4f})")
-print(f"Gap (Faithful - Distracted): {df['diff'].mean():.4f}")
+print(f"Gap (Faithful - Distracted): {df['cds_diff'].mean():.4f}")
 print("-" * 50)
 print(f"Statistical Significance (Paired T-test):")
 print(f"T-statistic: {t_stat:.4f}")
@@ -690,24 +1123,422 @@ plt.ylabel('Density')
 plt.legend()
 plt.grid(axis='y', alpha=0.75)
 plt.show()
-file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/fig1_Comparison_Distributions.png"
-#plt.savefig(file_name, dpi=300)
+png_name = file_name.split('/')[-1].split(".")[0]+".png"
+plt.savefig(png_name, dpi=300)
 print("✅ Figure 1 Saved.")
 
+"""##### 시각화(4-2)
+
+"""
+
 import json
-file_name = "/content/drive/MyDrive/ColabNotebooks/results/CDS/Qwen3-0.6B_hotpot_qa_best_results.json"
+file_name = file_list_json[11]; print(file_name)
 with open(file_name, 'r') as f:
     best_result = json.load(f)
 
+import numpy as np
 # Convert the loaded lists back to numpy arrays if they are intended to be used as such later
 best_result['attn_f'] = np.array(best_result['attn_f'])
-best_result['attn_h'] = np.array(best_result['attn_h'])
+best_result['attn_d'] = np.array(best_result['attn_d'])
 
-type(best_result['attn_f']), len(best_result['attn_f']), best_result['attn_f'][0]
+tok_f, score_f = best_result['tok_f'], best_result['score_f']
+tok_d, score_d = best_result['tok_d'], best_result['score_d']
 
-"""##### 시각화
+#type(best_result['attn_f']), len(best_result['attn_f']), best_result['attn_f'][0]
 
-"""
+import re
+
+# 특수문자 토큰 필터링 함수
+def is_valid_token(token):
+    """
+    유효한 토큰인지 확인 (알파벳, 숫자, 한글 포함)
+    """
+    # 알파벳, 숫자, 한글만 포함된 토큰만 허용
+    return bool(re.match(r'^[a-zA-Z0-9가-힣]+$', token.strip()))
+
+# f 데이터 필터링 및 정렬
+filtered_f_data = [(tok, score) for tok, score in zip(tok_f, score_f) if is_valid_token(tok)]
+sorted_f_data = sorted(filtered_f_data, key=lambda x: x[1], reverse=True)
+sorted_tok_f = [item[0] for item in sorted_f_data]
+sorted_score_f = [item[1] for item in sorted_f_data]
+
+# d 데이터 필터링 및 정렬
+filtered_d_data = [(tok, score) for tok, score in zip(tok_d, score_d) if is_valid_token(tok)]
+sorted_d_data = sorted(filtered_d_data, key=lambda x: x[1], reverse=True)
+sorted_tok_d = [item[0] for item in sorted_d_data]
+sorted_score_d = [item[1] for item in sorted_d_data]
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# ----------------------------------------------------------
+# 6) Heatmap 시각화
+# ----------------------------------------------------------
+def show_heatmap(tokens, scores, title="Attribution Heatmap"):
+
+    plt.figure(figsize=(18, 3))
+    colors = plt.cm.Reds([s / max(scores) for s in scores])
+
+    for i, (tok, sc) in enumerate(zip(tokens, scores)):
+        plt.text(i, 0, tok, rotation=90,
+                 fontsize=16,
+                 bbox=dict(facecolor=colors[i], alpha=0.8, edgecolor='none'))
+
+    plt.title(title)
+    plt.xticks([])
+    plt.yticks([])
+    plt.show()
+
+# ----------------------------------------------------------
+# 7) Score Line Plot
+# ----------------------------------------------------------
+def show_score_plot(scores, title="Attribution Score Plot"):
+    plt.figure(figsize=(18, 3))
+    plt.plot(scores)
+    plt.title(title)
+    plt.xlabel("Token Index")
+    plt.ylabel("Importance")
+    plt.grid(alpha=0.2)
+    plt.show()
+
+
+# 시각화
+k = 30
+print(sorted_tok_f[:k]+sorted_tok_f[-k:])#, sorted_score_f[:k])
+show_heatmap(sorted_tok_f[:k]+sorted_tok_f[-k:], sorted_score_f[:k]+sorted_score_f[-k:], title="Faithful Context Heatmap")
+show_score_plot(score_f, title="Faithful Context Score Plot")
+
+print(sorted_tok_d[:k]+sorted_tok_f[-k:])#, sorted_score_d[:k])
+show_heatmap(sorted_tok_d[:k], sorted_score_d[:k], title="Distracted Context Heatmap")
+show_score_plot(score_d, title="Distracted Context Score Plot")
+
+def find_context_question_spans(tokens):
+    context_key = "Context"
+    question_key = "Question"
+
+    ctx_idx = next((i for i, t in enumerate(tokens) if context_key in t), None)
+    q_idx = next((i for i, t in enumerate(tokens) if question_key in t), None)
+
+    # 못 찾으면 절반/절반으로 split
+    if ctx_idx is None or q_idx is None:
+        mid = len(tokens) // 2
+        return (1, mid), (mid, len(tokens))
+
+    return (ctx_idx + 1, q_idx), (q_idx + 1, len(tokens))
+
+
+def token_importance_heatmap(tokens, scores, ctx_span, q_span, title="Token Importance Heatmap"):
+
+    # 1 x N 형태 array
+    data = np.array(scores).reshape(1, -1)
+
+    # 기본 grayscale heatmap
+    plt.figure(figsize=(max(len(tokens) / 10, 20), 2))
+    ax = sns.heatmap(
+        data,
+        cmap="Greys",
+        xticklabels=False,
+        yticklabels=False,
+        cbar=True
+    )
+
+    # Context / Question span
+    c_s, c_e = ctx_span
+    q_s, q_e = q_span
+
+    # Context 영역 (파란색 투명)
+    ax.add_patch(plt.Rectangle(
+        (c_s, 0),             # (x, y)
+        c_e - c_s,            # width
+        1,                    # height
+        fill=True,
+        color=(0.3, 0.5, 1, 0.25),
+        lw=0
+    ))
+
+    # Question 영역 (빨간색 투명)
+    ax.add_patch(plt.Rectangle(
+        (q_s, 0),
+        q_e - q_s,
+        1,
+        fill=True,
+        color=(1, 0.3, 0.3, 0.25),
+        lw=0
+    ))
+
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+
+ctx_span, q_span = find_context_question_spans(tok_f)
+
+token_importance_heatmap(tok_f, score_f, ctx_span, q_span,
+                         title="Token Importance Heatmap Example")
+
+ctx_span, q_span = find_context_question_spans(tok_d)
+
+token_importance_heatmap(tok_d, score_d, ctx_span, q_span,
+                         title="Token Importance Heatmap Example")
+
+def show_heatmap_sns(tokens, scores, ctx_span, q_span, title="Token Attribution Heatmap"):
+
+    # 1 x N 배열 생성
+    scores_arr = np.array(scores).reshape(1, -1)
+
+    # 기본 heatmap 색상은 grayscale로
+    base_colors = sns.light_palette("gray", as_cmap=True)
+
+    # heatmap 출력
+    plt.figure(figsize=(max(len(tokens)/10, 20), 2))
+    ax = sns.heatmap(
+        scores_arr,
+        cmap=base_colors,
+        cbar=True,
+        xticklabels=False,
+        yticklabels=False
+    )
+
+    # Context / Question 구간 색 오버레이
+    c_s, c_e = ctx_span
+    q_s, q_e = q_span
+
+    # Context 영역 (파란색 반투명)
+    ax.add_patch(plt.Rectangle(
+        (c_s, 0),            # (x, y)
+        c_e - c_s,           # width
+        1,                   # height
+        fill=True,
+        color=(0.3, 0.5, 1, 0.25),
+        lw=0
+    ))
+
+    # Question 영역 (빨간색 반투명)
+    ax.add_patch(plt.Rectangle(
+        (q_s, 0),
+        q_e - q_s,
+        1,
+        fill=True,
+        color=(1, 0.3, 0.3, 0.25),
+        lw=0
+    ))
+
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+def show_heatmap_ctx_q(tokens, scores, ctx_span, q_span, title="Attribution Heatmap"):
+
+    c_s, c_e = ctx_span
+    q_s, q_e = q_span
+    max_score = max(scores)
+
+    plt.figure(figsize=(22, 3))
+
+    for i, (tok, sc) in enumerate(zip(tokens, scores)):
+        # 정규화
+        norm_sc = sc / max_score if max_score > 0 else 0
+
+        # 문맥/질문 구분 색상 적용
+        if c_s <= i < c_e:
+            color = plt.cm.Blues(norm_sc)   # 문맥 (파란 계열)
+        elif q_s <= i < q_e:
+            color = plt.cm.Reds(norm_sc)    # 질문 (빨간 계열)
+        else:
+            color = plt.cm.Greys(0.3)       # 시스템 프롬프트 영역 등은 회색
+
+        plt.text(
+            i, 0, tok, rotation=90, fontsize=6,
+            bbox=dict(facecolor=color, alpha=0.85, edgecolor='none')
+        )
+
+    plt.title(title)
+    plt.xticks([])
+    plt.yticks([])
+    plt.show()
+
+def show_score_plot_ctx_q(scores, ctx_span, q_span, title="Attribution Score Plot"):
+    c_s, c_e = ctx_span
+    q_s, q_e = q_span
+
+    plt.figure(figsize=(22, 4))
+
+    # 문맥 영역 배경색
+    plt.axvspan(c_s, c_e, color='skyblue', alpha=0.25, label="Context")
+
+    # 질문 영역 배경색
+    plt.axvspan(q_s, q_e, color='lightcoral', alpha=0.25, label="Question")
+
+    plt.plot(scores, color='black', linewidth=1)
+    plt.scatter(range(len(scores)), scores, color='green', s=10)
+
+    plt.title(title)
+    plt.xlabel("Token Index")
+    plt.ylabel("Importance Score")
+    plt.legend()
+    plt.grid(alpha=0.2)
+    plt.show()
+
+
+ctx_f, q_f = find_context_question_spans(tok_f)
+ctx_d, q_d = find_context_question_spans(tok_d)
+
+# Faithful heatmap
+show_heatmap_ctx_q(tok_f, score_f, ctx_f, q_f,
+                   title="Faithful Attribution Heatmap")
+show_heatmap_sns(tok_f, score_f, ctx_f, q_f,
+                 title="Faithful Heatmap (Seaborn)")
+
+# Faithful score plot
+show_score_plot_ctx_q(score_f, ctx_f, q_f,
+                      title="Faithful Attribution Score Plot")
+
+# Distracted heatmap
+show_heatmap_ctx_q(tok_d, score_d, ctx_d, q_d,
+                   title="Distracted Attribution Heatmap")
+show_heatmap_sns(tok_d, score_d, ctx_d, q_d,
+                   title="Distracted Attribution Heatmap")
+
+# Distracted score plot
+show_score_plot_ctx_q(score_d, ctx_d, q_d,
+                      title="Distracted Attribution Score Plot")
+
+"""##### backup"""
+
+# 시각화 설정
+plt.figure(figsize=(10, 6))
+sns.scatterplot(
+    data=df,#[df['len_diff']<0], #len_faithful<len_distracted
+    x='len_diff',
+    y='cds_faithful',
+    hue='diff_group', #cds_faithful-cds_distracted
+    palette={'positive': 'blue', 'negative': 'red'},
+    legend='full'
+)
+
+# 그래프 제목 및 축 레이블 설정
+plt.title('Scatter Plot of Faithful vs Distracted Centeredness')
+plt.xlabel('Faithful Centeredness')
+plt.ylabel('Distracted Centeredness')
+
+# 범례 표시
+plt.legend(title='Diff Group')
+plt.grid(True)
+plt.show()
+
+# 시각화 설정: 두 개의 플롯을 하나의 그림에 배치
+fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=False)
+
+# 첫 번째 플롯: cds_faithful vs cds_distracted
+sns.scatterplot(
+    ax=axes[0],
+    #data=df[df['len_diff']<0], #len_faithful<len_distracted,
+    data=df[df['len_diff']>0], #len_faithful>len_distracted,
+    x='cds_faithful',
+    y='cds_distracted',
+    hue='diff_group',
+    palette={'positive': 'blue', 'negative': 'red'},
+    legend='full'
+)
+axes[0].set_title('Scatter Plot of Faithful vs Distracted Centeredness')
+axes[0].set_xlabel('Faithful Centeredness')
+axes[0].set_ylabel('Distracted Centeredness')
+axes[0].grid(True)
+
+# 두 번째 플롯: len_faithful vs len_distracted
+sns.scatterplot(
+    ax=axes[1],
+    #data=df[df['len_diff']<0], #len_faithful<len_distracted,
+    data=df[df['len_diff']>0], #len_faithful>len_distracted,
+    x='len_faithful',
+    y='len_distracted',
+    hue='len_diff_group',
+    palette={'positive': 'green', 'negative': 'orange'},
+    legend='full'
+)
+axes[1].set_title('Scatter Plot of Faithful vs Distracted Length')
+axes[1].set_xlabel('Faithful Length')
+axes[1].set_ylabel('Distracted Length')
+axes[1].grid(True)
+
+plt.tight_layout()
+plt.show()
+
+# 시각화 설정: 두 개의 플롯을 하나의 그림에 배치
+fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=False)
+
+# 첫 번째 플롯: cds_faithful vs cds_distracted
+sns.scatterplot(
+    ax=axes[0],
+    #data=df[df['len_diff']<0], #len_faithful<len_distracted,
+    data=df[df['len_diff']>0], #len_faithful>len_distracted,
+    y='cds_faithful',
+    x='len_faithful',
+    hue='diff_group',
+    palette={'positive': 'blue', 'negative': 'red'},
+    legend='full'
+)
+axes[0].set_title('Scatter Plot of Faithful vs Distracted Centeredness')
+axes[0].set_ylabel('Faithful Centeredness')
+axes[0].set_xlabel('Faithful Length')
+axes[0].grid(True)
+
+# 두 번째 플롯: len_faithful vs len_distracted
+sns.scatterplot(
+    ax=axes[1],
+    #data=df[df['len_diff']<0], #len_faithful<len_distracted,
+    data=df[df['len_diff']>0], #len_faithful>len_distracted,
+    y='cds_faithful',
+    x='len_faithful',
+    hue='len_diff_group',
+    palette={'positive': 'green', 'negative': 'orange'},
+    legend='full'
+)
+axes[1].set_title('Scatter Plot of Faithful vs Distracted Length')
+axes[1].set_ylabel('Faithful Centeredness')
+axes[1].set_xlabel('Faithful Length')
+axes[1].grid(True)
+
+plt.tight_layout()
+plt.show()
+
+# 시각화 설정: 두 개의 플롯을 하나의 그림에 배치
+fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharey=False)
+
+# 첫 번째 플롯: cds_faithful vs cds_distracted
+sns.scatterplot(
+    ax=axes[0],
+    #data=df[df['len_diff']<0], #len_faithful<len_distracted,
+    data=df[df['len_diff']>0], #len_faithful>len_distracted,
+    y='cds_distracted',
+    x='len_distracted',
+    hue='diff_group',
+    palette={'positive': 'blue', 'negative': 'red'},
+    legend='full'
+)
+axes[0].set_title('Scatter Plot of Faithful vs Distracted Centeredness')
+axes[0].set_ylabel('Distracted Centeredness')
+axes[0].set_xlabel('Distracted Length')
+axes[0].grid(True)
+
+# 두 번째 플롯: len_faithful vs len_distracted
+sns.scatterplot(
+    ax=axes[1],
+    #data=df[df['len_diff']<0], #len_faithful<len_distracted,
+    data=df[df['len_diff']>0], #len_faithful>len_distracted,
+    y='cds_distracted',
+    x='len_distracted',
+    hue='len_diff_group',
+    palette={'positive': 'green', 'negative': 'orange'},
+    legend='full'
+)
+axes[1].set_title('Scatter Plot of Faithful vs Distracted Length')
+axes[1].set_ylabel('Distracted Centeredness')
+axes[1].set_xlabel('Distracted Length')
+axes[1].grid(True)
+
+plt.tight_layout()
+plt.show()
 
 # ==========================================
 # 4. 정성 분석 시각화 (Figure 1 & 2)
